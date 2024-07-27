@@ -1,8 +1,9 @@
 import { hash } from 'bcryptjs'
-import { FastifyInstance } from 'fastify'
-import { ZodTypeProvider } from 'fastify-type-provider-zod'
+import type { FastifyInstance } from 'fastify'
+import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 
+import { BadRequestError } from '@/http/_errors/bad-request-error'
 import { prisma } from '@/lib/prisma'
 
 export async function createAccount(app: FastifyInstance) {
@@ -10,6 +11,8 @@ export async function createAccount(app: FastifyInstance) {
     '/users',
     {
       schema: {
+        tags: ['Auth'],
+        summary: 'Create a new account',
         body: z.object({
           name: z.string(),
           email: z.string().email(),
@@ -27,10 +30,17 @@ export async function createAccount(app: FastifyInstance) {
       })
 
       if (userWithSameEmail) {
-        return reply.status(409).send({
-          message: 'User with same email already exists',
-        })
+        throw new BadRequestError('User with same e-mail already exists.')
       }
+
+      const [, domain] = email.split('@')
+
+      const autoJoinOrganization = await prisma.organization.findFirst({
+        where: {
+          domain,
+          shouldAttachUsersByDomain: true,
+        },
+      })
 
       const passwordHash = await hash(password, 6)
 
@@ -39,6 +49,13 @@ export async function createAccount(app: FastifyInstance) {
           name,
           email,
           passwordHash,
+          member_on: autoJoinOrganization
+            ? {
+                create: {
+                  organizationId: autoJoinOrganization.id,
+                },
+              }
+            : undefined,
         },
       })
 
