@@ -27,3 +27,5 @@ export const permissions: Record<Role, PermissionsByRole> = {
     can('manage', 'Billing')
   },
 }
+
+acessar, criar, atualizar, deletar, transferir_ownership, imprimir e exportar
